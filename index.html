@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TechnoDonate | All-in-One Cinematic App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Orbitron:wght@500;700;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="dark-mode">
+    <div class="stars"></div>
+    <div class="nebula"></div>
+
+    <header class="global-header">
+        <h1 class="glitch-logo" data-text="TechnoDonate">TechnoDonate</h1>
+        <p class="subtitle">Message to P' Techno Gen</p>
+    </header>
+
+    <div class="top-controls">
+        <button id="nav-display-btn" class="icon-btn" title="Go to Live Display">🖥️ Open Display</button>
+        <button id="theme-toggle" class="icon-btn" aria-label="Toggle Dark Mode">🌙</button>
+    </div>
+
+    <section id="submission-page" class="page-view active-view">
+        <div class="container perspective-container">
+            <main class="glass-panel 3d-card">
+                <form id="donate-form">
+                    <div class="input-group">
+                        <label for="nickname">Nickname</label>
+                        <input type="text" id="nickname" maxlength="30" placeholder="Enter your nickname" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="message">Message</label>
+                        <textarea id="message" maxlength="200" placeholder="Type your message here..." rows="4"
+                            required></textarea>
+                        <div class="char-counter" id="char-counter">0 / 200</div>
+                    </div>
+
+                    <p id="profanity-warning" class="error-text hidden" role="status">⚠️ Inappropriate word detected.
+                    </p>
+
+                    <button type="submit" id="submit-btn" class="glow-btn">
+                        <span>SEND MESSAGE</span>
+                    </button>
+
+                    <div class="cooldown-container hidden" id="cooldown-container">
+                        <div class="cooldown-bar" id="cooldown-bar"></div>
+                    </div>
+                </form>
+
+                <div id="loading-overlay" class="hidden">
+                    <div class="spinner"></div>
+                </div>
+            </main>
+        </div>
+    </section>
+
+    <section id="login-page" class="page-view hidden">
+        <div class="modal-overlay">
+            <div class="glass-panel login-card">
+                <h2 class="glitch-logo" data-text="Admin Login">Admin Login</h2>
+                <input type="email" id="login-email" placeholder="Email">
+                <input type="password" id="login-password" placeholder="Password">
+                <p id="login-error" class="error-text hidden">Invalid credentials</p>
+                <div class="login-actions">
+                    <button id="login-btn" class="glow-btn">ENTER SYSTEM</button>
+                    <button id="back-to-form" class="icon-btn">Back</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="display-page" class="page-view hidden">
+        <div class="fullscreen-container">
+            <div class="display-controls-bar">
+                <div class="admin-controls glass-panel">
+                    <button id="tts-toggle" class="icon-btn active" title="Toggle TTS (เปิด/ปิดเสียงอ่าน)">🔊 TTS:
+                        ON</button>
+                    <button id="fullscreen-btn" class="icon-btn" title="Fullscreen">⛶ Fullscreen</button>
+                    <button id="reset-btn" class="icon-btn danger" title="Reset Database">🗑 Reset All</button>
+                    <button id="logout-btn" class="icon-btn" title="Close Display">🚪 Exit Display</button>
+                    <div class="status-group">
+                        <span class="status-dot online"></span>
+                        <span class="counter-badge">💬 <span id="disp-total-count">0</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <main class="hero-zone">
+                <div id="empty-state" class="empty-state">
+                    <h2>Waiting for messages...</h2>
+                </div>
+
+                <div id="hero-card" class="glass-panel hero-card hidden 3d-card">
+                    <h3 id="hero-nickname" class="gold-accent"></h3>
+                    <p id="hero-message" class="glowing-text"></p>
+                    <div class="progress-container">
+                        <div id="hero-progress" class="progress-bar"></div>
+                    </div>
+                </div>
+            </main>
+
+            <footer class="archive-strip">
+                <div id="archive-container" class="archive-container"></div>
+            </footer>
+        </div>
+    </section>
+
+    <div id="global-status" class="bottom-indicators">
+        <div class="status-badge">
+            <span class="status-dot" id="conn-dot"></span>
+            <span id="conn-text">Connecting...</span>
+        </div>
+        <div class="msg-counter">
+            Messages Sent Today: <span id="total-count">0</span>
+        </div>
+    </div>
+
+    <div id="toast" class="toast hidden">Message sent successfully!</div>
+
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>
