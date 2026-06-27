@@ -3,8 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TechnoDonate | All-in-One Cinematic App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TechnoDonate | Cinematic Real-time App</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -17,19 +17,19 @@
     <div class="stars"></div>
     <div class="nebula"></div>
 
-    <header class="global-header">
+    <header class="global-header" id="main-header">
         <h1 class="glitch-logo" data-text="TechnoDonate">TechnoDonate</h1>
         <p class="subtitle">Message to P' Techno Gen</p>
     </header>
 
-    <div class="top-controls">
-        <button id="nav-display-btn" class="icon-btn" title="Go to Live Display">🖥️ Open Display</button>
-        <button id="theme-toggle" class="icon-btn" aria-label="Toggle Dark Mode">🌙</button>
+    <div class="top-controls" id="global-nav">
+        <button id="nav-display-btn" class="icon-btn">🖥️ Open Display</button>
+        <button id="theme-toggle" class="icon-btn">🌙</button>
     </div>
 
     <section id="submission-page" class="page-view active-view">
-        <div class="container perspective-container">
-            <main class="glass-panel 3d-card">
+        <div class="perspective-container">
+            <main class="glass-panel 3d-card form-wrapper">
                 <form id="donate-form">
                     <div class="input-group">
                         <label for="nickname">Nickname</label>
@@ -66,8 +66,12 @@
         <div class="modal-overlay">
             <div class="glass-panel login-card">
                 <h2 class="glitch-logo" data-text="Admin Login">Admin Login</h2>
-                <input type="email" id="login-email" placeholder="Email">
-                <input type="password" id="login-password" placeholder="Password">
+                <div class="input-group">
+                    <input type="email" id="login-email" placeholder="Email">
+                </div>
+                <div class="input-group">
+                    <input type="password" id="login-password" placeholder="Password">
+                </div>
                 <p id="login-error" class="error-text hidden">Invalid credentials</p>
                 <div class="login-actions">
                     <button id="login-btn" class="glow-btn">ENTER SYSTEM</button>
@@ -79,13 +83,17 @@
 
     <section id="display-page" class="page-view hidden">
         <div class="fullscreen-container">
-            <div class="display-controls-bar">
+
+            <div class="display-header-inside">
+                <div class="logo-area">
+                    <h1 class="glitch-logo small-glitch" data-text="TechnoDonate">TechnoDonate</h1>
+                    <p class="subtitle mini-sub">Live Broadcast Screen</p>
+                </div>
                 <div class="admin-controls glass-panel">
-                    <button id="tts-toggle" class="icon-btn active" title="Toggle TTS (เปิด/ปิดเสียงอ่าน)">🔊 TTS:
-                        ON</button>
-                    <button id="fullscreen-btn" class="icon-btn" title="Fullscreen">⛶ Fullscreen</button>
-                    <button id="reset-btn" class="icon-btn danger" title="Reset Database">🗑 Reset All</button>
-                    <button id="logout-btn" class="icon-btn" title="Close Display">🚪 Exit Display</button>
+                    <button id="tts-toggle" class="icon-btn active">🔊 TTS: ON</button>
+                    <button id="fullscreen-btn" class="icon-btn">⛶ Fullscreen</button>
+                    <button id="reset-btn" class="icon-btn danger">🗑 Reset All</button>
+                    <button id="logout-btn" class="icon-btn">🚪 Exit</button>
                     <div class="status-group">
                         <span class="status-dot online"></span>
                         <span class="counter-badge">💬 <span id="disp-total-count">0</span></span>
@@ -93,19 +101,20 @@
                 </div>
             </div>
 
-            <main class="hero-zone">
+            <div class="hero-zone">
                 <div id="empty-state" class="empty-state">
                     <h2>Waiting for messages...</h2>
+                    <div class="spinner-ambient"></div>
                 </div>
 
-                <div id="hero-card" class="glass-panel hero-card hidden 3d-card">
+                <div id="hero-card" class="glass-panel hero-card hidden">
                     <h3 id="hero-nickname" class="gold-accent"></h3>
                     <p id="hero-message" class="glowing-text"></p>
                     <div class="progress-container">
                         <div id="hero-progress" class="progress-bar"></div>
                     </div>
                 </div>
-            </main>
+            </div>
 
             <footer class="archive-strip">
                 <div id="archive-container" class="archive-container"></div>
@@ -116,10 +125,10 @@
     <div id="global-status" class="bottom-indicators">
         <div class="status-badge">
             <span class="status-dot" id="conn-dot"></span>
-            <span id="conn-text">Connecting...</span>
+            <span id="conn-text">Connecting to Firebase...</span>
         </div>
         <div class="msg-counter">
-            Messages Sent Today: <span id="total-count">0</span>
+            Total Messages: <span id="total-count">0</span>
         </div>
     </div>
 
