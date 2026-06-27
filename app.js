@@ -1,20 +1,34 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
 import {
-    getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, getDocs, deleteDoc
+    getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, getDocs, deleteDoc, initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-// === 1. CONFIG FIREBASE (นำคีย์ของคุณมาวางทับที่นี่ได้เลยครับ) ===
+// === 1. CONFIG FIREBASE (วางค่าคีย์ของคุณตรงนี้) ===
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyAkEP8z5hY3MCGO2Git8ibRrPowZLF-avU",
+    authDomain: "technogendonatedikub.firebaseapp.com",
+    projectId: "technogendonatedikub",
+    storageBucket: "technogendonatedikub.firebasestorage.app",
+    messagingSenderId: "1031916391721",
+    appId: "1:1031916391721:web:0aacf2514177b9cfb9fb38",
+    measurementId: "G-NT9BHEBYKW"
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+
+// แก้ไขจุดนี้: ตั้งค่า Firestore ให้เขียนส่งตรงไปยัง Cloud ทันทีโดยไม่ผ่าน Cache ที่หน่วงระบบ
+const db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+    })
+});
+
+// === APP STATE ===
+let queue = [];
+let isPlaying = false;
+let ttsEnabled = true;
+let processedIds = new Set();
+let isSystemInitialized = false;
 
 // === DOM ELEMENTS ===
 const views = {
@@ -22,11 +36,12 @@ const views = {
     login: document.getElementById('login-page'),
     display: document.getElementById('display-page')
 };
-const globalHeader = document.querySelector('.global-header');
+const mainHeader = document.getElementById('main-header');
+const globalNav = document.getElementById('global-nav');
 const globalStatus = document.getElementById('global-status');
 const navDisplayBtn = document.getElementById('nav-display-btn');
 
-// --- Navigation Logic ---
+// --- หน้าสลับ View ---
 function switchView(viewName) {
     Object.keys(views).forEach(key => {
         views[key].classList.add('hidden');
@@ -35,52 +50,160 @@ function switchView(viewName) {
     views[viewName].classList.remove('hidden');
     views[viewName].classList.add('active-view');
 
-    // จัดการการแสดงผล Header/Footer ส่วนกลาง
     if (viewName === 'display') {
-        globalHeader.classList.add('hidden');
-        globalStatus.classList.add('hidden');
-        navDisplayBtn.classList.add('hidden');
+        if (mainHeader) mainHeader.classList.add('hidden');
+        if (globalStatus) globalStatus.classList.add('hidden');
+        if (globalNav) globalNav.classList.add('hidden');
     } else {
-        globalHeader.classList.remove('hidden');
-        globalStatus.classList.remove('hidden');
-        navDisplayBtn.classList.remove('hidden');
+        if (mainHeader) mainHeader.classList.remove('hidden');
+        if (globalStatus) globalStatus.classList.remove('hidden');
+        if (globalNav) globalNav.classList.remove('hidden');
     }
 }
 
-navDisplayBtn.addEventListener('click', () => {
-    if (sessionStorage.getItem('display_auth') === 'true') {
-        switchView('display');
-        startLiveDisplay();
-    } else {
-        switchView('login');
+if (navDisplayBtn) {
+    navDisplayBtn.addEventListener('click', () => {
+        if (sessionStorage.getItem('display_auth') === 'true') {
+            switchView('display');
+        } else {
+            switchView('login');
+        }
+    });
+}
+if (document.getElementById('back-to-form')) {
+    document.getElementById('back-to-form').addEventListener('click', () => switchView('submission'));
+}
+
+// === LOGIC หน้า LOGIN GATES ===
+const loginBtn = document.getElementById('login-btn');
+if (loginBtn) {
+    loginBtn.addEventListener('click', () => {
+        const email = document.getElementById('login-email').value;
+        const pass = document.getElementById('login-password').value;
+        const error = document.getElementById('login-error');
+
+        if (email === 'xnytxs@gmail.com' && pass === 'h6h6h678') {
+            sessionStorage.setItem('display_auth', 'true');
+            if (error) error.classList.add('hidden');
+            switchView('display');
+        } else {
+            if (error) error.classList.remove('hidden');
+        }
+    });
+}
+
+const logoutBtn = document.getElementById('logout-btn');
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+        sessionStorage.removeItem('display_auth');
+        switchView('submission');
+    });
+}
+
+// === GLOBAL REAL-TIME LISTENER (รับส่งข้อมูลแบบ Millisecond Realtime) ===
+function initGlobalListener() {
+    if (isSystemInitialized) return;
+    isSystemInitialized = true;
+
+    const connDot = document.getElementById('conn-dot');
+    const connText = document.getElementById('conn-text');
+
+    const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
+
+    onSnapshot(q, (snapshot) => {
+        if (connDot) connDot.classList.add('online');
+        if (connText) connText.textContent = 'Connected Realtime';
+
+        const totalCountEl = document.getElementById('total-count');
+        const dispTotalCountEl = document.getElementById('disp-total-count');
+        if (totalCountEl) totalCountEl.textContent = snapshot.size;
+        if (dispTotalCountEl) dispTotalCountEl.textContent = snapshot.size;
+
+        snapshot.docChanges().forEach(change => {
+            if (change.type === 'added') {
+                const data = { id: change.doc.id, ...change.doc.data() };
+                if (!processedIds.has(data.id)) {
+                    processedIds.add(data.id);
+                    queue.push(data);
+                    processDisplayQueue();
+                }
+            }
+        });
+    }, (err) => {
+        console.error("Firebase connection error: ", err);
+        if (connDot) connDot.classList.remove('online');
+        if (connText) connText.textContent = 'Disconnected';
+    });
+}
+
+// === ENGINE คิวหมุนเวียน 6 วินาที และเสียงอ่าน (TTS) ===
+function processDisplayQueue() {
+    if (isPlaying || queue.length === 0) return;
+    isPlaying = true;
+
+    const currentMsg = queue.shift();
+    const emptyState = document.getElementById('empty-state');
+    const heroCard = document.getElementById('hero-card');
+
+    if (emptyState) emptyState.classList.add('hidden');
+    if (heroCard) heroCard.classList.remove('hidden');
+
+    const heroNickEl = document.getElementById('hero-nickname');
+    const heroMsgEl = document.getElementById('hero-message');
+    if (heroNickEl) heroNickEl.textContent = currentMsg.nickname;
+    if (heroMsgEl) heroMsgEl.textContent = currentMsg.message;
+
+    const progress = document.getElementById('hero-progress');
+    if (progress) {
+        progress.style.animation = 'none';
+        void progress.offsetWidth;
+        progress.style.animation = 'scale-drain 6s linear forwards';
     }
-});
 
-document.getElementById('back-to-form').addEventListener('click', () => switchView('submission'));
-
-// === PAGE 2: ADMIN LOGIN GATE ===
-document.getElementById('login-btn').addEventListener('click', () => {
-    const email = document.getElementById('login-email').value;
-    const pass = document.getElementById('login-password').value;
-    const error = document.getElementById('login-error');
-
-    if (email === 'xnytxs@gmail.com' && pass === 'h6h6h678') {
-        sessionStorage.setItem('display_auth', 'true');
-        error.classList.add('hidden');
-        switchView('display');
-        startLiveDisplay();
-    } else {
-        error.classList.remove('hidden');
+    if (ttsEnabled) {
+        playNaturalTTS(currentMsg.nickname, currentMsg.message);
     }
-});
 
-document.getElementById('logout-btn').addEventListener('click', () => {
-    sessionStorage.removeItem('display_auth');
-    switchView('submission');
-});
+    setTimeout(() => {
+        if (heroCard) heroCard.classList.add('hidden');
+        pushToArchiveStrip(currentMsg);
+        isPlaying = false;
 
+        if (queue.length > 0) {
+            processDisplayQueue();
+        } else {
+            if (emptyState) emptyState.classList.remove('hidden');
+        }
+    }, 6000);
+}
 
-// === PAGE 1: SUBMISSION FORM LOGIC ===
+function playNaturalTTS(nickname, message) {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+
+    const textTemplate = `${nickname} ส่งข้อความว่า ${message}`;
+    const utterance = new SpeechSynthesisUtterance(textTemplate);
+
+    const isThai = /[\u0E00-\u0E7F]/.test(textTemplate);
+    utterance.lang = isThai ? 'th-TH' : 'en-US';
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    window.speechSynthesis.speak(utterance);
+}
+
+function pushToArchiveStrip(msg) {
+    const container = document.getElementById('archive-container');
+    if (!container) return;
+    const item = document.createElement('div');
+    item.className = 'archive-item';
+    item.innerHTML = `<span class="gold-accent">${msg.nickname}:</span> <span>${msg.message}</span>`;
+    container.appendChild(item);
+    container.scrollLeft = container.scrollWidth;
+}
+
+// === SUBMISSION FORM ENGINE (แก้ปัญหาค้างที่หน้าหมุน) ===
 const form = document.getElementById('donate-form');
 const messageInput = document.getElementById('message');
 const charCounter = document.getElementById('char-counter');
@@ -93,180 +216,110 @@ const toast = document.getElementById('toast');
 
 const badWords = ['fuck', 'shit', 'ควย', 'สัส', 'เหี้ย', 'เย็ด'];
 
-messageInput.addEventListener('input', () => {
-    charCounter.textContent = `${messageInput.value.length} / 200`;
-});
-
-form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const nick = document.getElementById('nickname').value.trim();
-    const msg = messageInput.value.trim();
-
-    if (badWords.some(w => nick.toLowerCase().includes(w) || msg.toLowerCase().includes(w))) {
-        profanityWarning.classList.remove('hidden');
-        return;
-    }
-    profanityWarning.classList.add('hidden');
-
-    loadingOverlay.classList.remove('hidden');
-    try {
-        await addDoc(collection(db, "messages"), {
-            nickname: nick,
-            message: msg,
-            timestamp: serverTimestamp()
-        });
-        loadingOverlay.classList.add('hidden');
-        toast.classList.remove('hidden');
-        setTimeout(() => toast.classList.add('hidden'), 3000);
-        form.reset();
-        charCounter.textContent = '0 / 200';
-
-        // Cooldown 10s
-        submitBtn.disabled = true;
-        cooldownContainer.classList.remove('hidden');
-        cooldownBar.style.animation = 'none';
-        void cooldownBar.offsetWidth;
-        cooldownBar.style.animation = 'progress-drain 10s linear forwards';
-        setTimeout(() => {
-            submitBtn.disabled = false;
-            cooldownContainer.classList.add('hidden');
-        }, 10000);
-
-    } catch (err) {
-        loadingOverlay.classList.add('hidden');
-        alert("Error sending message.");
-    }
-});
-
-
-// === PAGE 3: LIVE DISPLAY & TTS (TEXT TO SPEECH) LOGIC ===
-let queue = [];
-let isPlaying = false;
-let ttsEnabled = true;
-let processedIds = new Set();
-let unsubMessages, unsubCount;
-
-function startLiveDisplay() {
-    if (unsubMessages) return; // ป้องกันการผูก Event ซ้ำซ้อน
-
-    // Live Count
-    unsubCount = onSnapshot(collection(db, "messages"), (snap) => {
-        document.getElementById('disp-total-count').textContent = snap.size;
-    });
-
-    // Real-time Queue Listener
-    const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
-    unsubMessages = onSnapshot(q, (snapshot) => {
-        snapshot.docChanges().forEach(change => {
-            if (change.type === 'added') {
-                const data = { id: change.doc.id, ...change.doc.data() };
-                if (!processedIds.has(data.id)) {
-                    queue.push(data);
-                    processedIds.add(data.id);
-                    processQueue();
-                }
-            }
-        });
+if (messageInput && charCounter) {
+    messageInput.addEventListener('input', () => {
+        charCounter.textContent = `${messageInput.value.length} / 200`;
     });
 }
 
-function processQueue() {
-    if (isPlaying || queue.length === 0) return;
-    isPlaying = true;
+if (form) {
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const nick = document.getElementById('nickname').value.trim();
+        const msg = messageInput.value.trim();
 
-    const currentMsg = queue.shift();
-    const emptyState = document.getElementById('empty-state');
-    const heroCard = document.getElementById('hero-card');
-
-    emptyState.classList.add('hidden');
-    heroCard.classList.remove('hidden');
-
-    document.getElementById('hero-nickname').textContent = currentMsg.nickname;
-    document.getElementById('hero-message').textContent = currentMsg.message;
-
-    // เอฟเฟกต์หลอดเวลานับถอยหลัง 6 วินาที
-    const progress = document.getElementById('hero-progress');
-    progress.style.animation = 'none';
-    void progress.offsetWidth;
-    progress.style.animation = 'progress-drain 6s linear forwards';
-
-    // 🔥 ฟังก์ชันอ่านออกเสียงชื่อและข้อความ (TTS)
-    if (ttsEnabled) {
-        playTTS(currentMsg.nickname, currentMsg.message);
-    }
-
-    setTimeout(() => {
-        heroCard.classList.add('hidden');
-        moveToArchive(currentMsg);
-        isPlaying = false;
-        if (queue.length > 0) {
-            processQueue();
-        } else {
-            emptyState.classList.remove('hidden');
+        if (badWords.some(w => nick.toLowerCase().includes(w) || msg.toLowerCase().includes(w))) {
+            if (profanityWarning) profanityWarning.classList.remove('hidden');
+            return;
         }
-    }, 6000);
+        if (profanityWarning) profanityWarning.classList.add('hidden');
+
+        if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+
+        try {
+            // บันทึกข้อมูลลงฐานข้อมูลโดยตรง
+            await addDoc(collection(db, "messages"), {
+                nickname: nick,
+                message: msg,
+                timestamp: serverTimestamp()
+            });
+
+            // ปลดล็อค UI ทันทีเมื่อ Firebase บันทึกเรียบร้อย
+            if (loadingOverlay) loadingOverlay.classList.add('hidden');
+            if (toast) {
+                toast.classList.remove('hidden');
+                setTimeout(() => toast.classList.add('hidden'), 3000);
+            }
+            form.reset();
+            if (charCounter) charCounter.textContent = '0 / 200';
+
+            // จัดการ Cooldown แถบอนิเมชั่น 10 วินาที
+            if (submitBtn && cooldownContainer && cooldownBar) {
+                submitBtn.disabled = true;
+                cooldownContainer.classList.remove('hidden');
+                cooldownBar.style.animation = 'none';
+                void cooldownBar.offsetWidth;
+                cooldownBar.style.animation = 'scale-drain 10s linear forwards';
+
+                setTimeout(() => {
+                    submitBtn.disabled = false;
+                    cooldownContainer.classList.add('hidden');
+                }, 10000);
+            }
+
+        } catch (err) {
+            if (loadingOverlay) loadingOverlay.classList.add('hidden');
+            console.error(err);
+            alert("ไม่สามารถส่งข้อมูลได้ กรุณาตรวจสอบให้แน่ใจว่าได้เปิด Firestore ในโหมด Test Mode แล้วบน Firebase Console");
+        }
+    });
 }
 
-function playTTS(nickname, message) {
-    if (!('speechSynthesis' in window)) return;
-
-    // บังคับรูปแบบการอ่านคำตามเงื่อนไข: [ชื่อ] ส่งข้อความว่า [ข้อความ]
-    const fullTextToRead = `${nickname} ส่งข้อความว่า ${message}`;
-    const utterance = new SpeechSynthesisUtterance(fullTextToRead);
-
-    // ตรวจสอบภาษาเพื่อเลือก Voice Engine (ถ้ามีภาษาไทยให้ใช้ th-TH)
-    const isThai = /[\u0E00-\u0E7F]/.test(fullTextToRead);
-    utterance.lang = isThai ? 'th-TH' : 'en-US';
-    utterance.rate = 0.9;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-
-    window.speechSynthesis.speak(utterance);
+// === CONTROLS ZONE ===
+const ttsToggle = document.getElementById('tts-toggle');
+if (ttsToggle) {
+    ttsToggle.addEventListener('click', (e) => {
+        ttsEnabled = !ttsEnabled;
+        e.target.textContent = ttsEnabled ? '🔊 TTS: ON' : '🔇 TTS: OFF';
+        e.target.classList.toggle('active', ttsEnabled);
+    });
 }
 
-function moveToArchive(msg) {
-    const container = document.getElementById('archive-container');
-    const item = document.createElement('div');
-    item.className = 'archive-item glass-panel';
-    item.innerHTML = `<span class="gold-accent">${msg.nickname}:</span> <span>${msg.message}</span>`;
-    container.appendChild(item);
-    container.scrollLeft = container.scrollWidth;
+const resetBtn = document.getElementById('reset-btn');
+if (resetBtn) {
+    resetBtn.addEventListener('click', async () => {
+        if (confirm('Delete all records in Firestore? This cannot be undone.')) {
+            const snap = await getDocs(collection(db, "messages"));
+            snap.forEach(docSnap => deleteDoc(docSnap.ref));
+            queue = [];
+            processedIds.clear();
+            const archContainer = document.getElementById('archive-container');
+            const heroCard = document.getElementById('hero-card');
+            const emptyState = document.getElementById('empty-state');
+
+            if (archContainer) archContainer.innerHTML = '';
+            if (heroCard) heroCard.classList.add('hidden');
+            if (emptyState) emptyState.classList.remove('hidden');
+            isPlaying = false;
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        }
+    });
 }
 
-// --- Admin Control Handlers ---
-document.getElementById('tts-toggle').addEventListener('click', (e) => {
-    ttsEnabled = !ttsEnabled;
-    e.target.textContent = ttsEnabled ? '🔊 TTS: ON' : '🔇 TTS: OFF';
-    e.target.classList.toggle('active', ttsEnabled);
-});
-
-document.getElementById('reset-btn').addEventListener('click', async () => {
-    if (confirm('Reset all messages? This cannot be undone.')) {
-        const snap = await getDocs(collection(db, "messages"));
-        snap.forEach(docSnap => deleteDoc(docSnap.ref));
-        queue = [];
-        processedIds.clear();
-        document.getElementById('archive-container').innerHTML = '';
-        document.getElementById('hero-card').classList.add('hidden');
-        document.getElementById('empty-state').classList.remove('hidden');
-        isPlaying = false;
-    }
-});
-
-document.getElementById('fullscreen-btn').addEventListener('click', () => {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-    else document.exitFullscreen();
-});
-
-// Sync counter for Form view
-onSnapshot(collection(db, "messages"), (snap) => {
-    document.getElementById('total-count').textContent = snap.size;
-    const dot = document.getElementById('conn-dot');
-    dot.classList.add('online');
-    document.getElementById('conn-text').textContent = 'Online';
-});
-
-// Check auto auth
-if (sessionStorage.getItem('display_auth') === 'true') {
-    // เริ่มทำงานเงียบๆ เผื่อกรณีแอดมิน f5 หน้าเว็บ
+const fsBtn = document.getElementById('fullscreen-btn');
+if (fsBtn) {
+    fsBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+    });
 }
+
+const themeToggle = document.getElementById('theme-toggle');
+if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+        document.body.classList.toggle('dark-mode');
+    });
+}
+
+// STARTUP APPLICATION RUNTIME
+initGlobalListener();
